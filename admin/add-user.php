@@ -214,6 +214,10 @@ require_once "../includes/header.php";
                 Librarian
             </option>
 
+            <option value="admin">
+                Admin
+            </option>
+
         </select>
 
     </div>

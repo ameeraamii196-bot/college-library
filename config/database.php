@@ -1,9 +1,9 @@
 <CodeBlock id="step3-database-connection" language="php" filename="config/database.php"> <?php
 
-$host = "localhost";
-$username = "root";
-$password = "";
-$database = "college_library";
+$host = getenv("DB_HOST") ?: "localhost";
+$username = getenv("DB_USER") ?: "root";
+$password = getenv("DB_PASSWORD") ?: "";
+$database = getenv("DB_NAME") ?: "college_library";
 
 $conn = new mysqli($host, $username, $password, $database);
 
