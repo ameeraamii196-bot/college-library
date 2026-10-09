@@ -65,7 +65,7 @@ $result_existing = $stmt_existing->get_result();
 if ($result_existing->num_rows > 0) {
     $stmt_existing->close();
 
-    header("Location: book-details.php?id=" . $book_id);
+    header("Location: book-details.php?id=" . $book_id . "&reservation=exists");
     exit;
 }
 
@@ -95,7 +95,7 @@ $result_issued = $stmt_issued->get_result();
 if ($result_issued->num_rows > 0) {
     $stmt_issued->close();
 
-    header("Location: book-details.php?id=" . $book_id);
+    header("Location: book-details.php?id=" . $book_id . "&reservation=exists");
     exit;
 }
 
@@ -103,35 +103,55 @@ $stmt_issued->close();
 
 
 /* -----------------------------------
-   4. Start transaction
+   4. Enforce the actual reservation rule
+----------------------------------- */
+
+$today = date("Y-m-d");
+
+$sql_availability = "SELECT
+                        SUM(CASE WHEN bc.status = 'available' THEN 1 ELSE 0 END) AS available_copies,
+                        SUM(CASE
+                            WHEN bc.status = 'issued'
+                            AND EXISTS (
+                                SELECT 1
+                                FROM loans l
+                                WHERE l.copy_id = bc.id
+                                AND l.due_date = ?
+                                AND l.status IN ('issued', 'overdue')
+                            )
+                            THEN 1
+                            ELSE 0
+                        END) AS returning_today
+                    FROM book_copies bc
+                    WHERE bc.book_id = ?";
+
+$stmt_availability = $conn->prepare($sql_availability);
+$stmt_availability->bind_param("si", $today, $book_id);
+$stmt_availability->execute();
+
+$availability_data = $stmt_availability->get_result()->fetch_assoc();
+$available_copies = (int) ($availability_data["available_copies"] ?? 0);
+$returning_today = (int) ($availability_data["returning_today"] ?? 0);
+$stmt_availability->close();
+
+if ($available_copies > 0) {
+    header("Location: book-details.php?id=" . $book_id . "&reservation=available");
+    exit;
+}
+
+if ($returning_today <= 0) {
+    header("Location: book-details.php?id=" . $book_id . "&reservation=unavailable");
+    exit;
+}
+
+
+/* -----------------------------------
+   5. Start transaction
 ----------------------------------- */
 
 $conn->begin_transaction();
 
 try {
-
-    $sql_copy = "SELECT id
-                 FROM book_copies
-                 WHERE book_id = ?
-                 AND status = 'available'
-                 ORDER BY id ASC
-                 LIMIT 1
-                 FOR UPDATE";
-
-    $stmt_copy = $conn->prepare($sql_copy);
-    $stmt_copy->bind_param("i", $book_id);
-    $stmt_copy->execute();
-
-    $result_copy = $stmt_copy->get_result();
-
-    $copy_id = null;
-
-    if ($result_copy->num_rows > 0) {
-        $copy = $result_copy->fetch_assoc();
-        $copy_id = (int) $copy["id"];
-    }
-
-    $stmt_copy->close();
 
     $sql_reservation = "INSERT INTO reservations
                         (user_id, book_id, status)
@@ -140,21 +160,7 @@ try {
     $stmt_reservation = $conn->prepare($sql_reservation);
     $stmt_reservation->bind_param("ii", $user_id, $book_id);
     $stmt_reservation->execute();
-
     $stmt_reservation->close();
-
-    if ($copy_id !== null) {
-
-        $sql_reserve_copy = "UPDATE book_copies
-                             SET status = 'reserved'
-                             WHERE id = ?
-                             AND status = 'available'";
-
-        $stmt_reserve_copy = $conn->prepare($sql_reserve_copy);
-        $stmt_reserve_copy->bind_param("i", $copy_id);
-        $stmt_reserve_copy->execute();
-        $stmt_reserve_copy->close();
-    }
 
     recordActivity($conn, $user_id, "reserve");
 
@@ -167,7 +173,7 @@ try {
     die("Reservation request failed. Please try again.");
 }
 
-header("Location: book-details.php?id=" . $book_id);
+header("Location: book-details.php?id=" . $book_id . "&reservation=requested");
 exit;
 
 ?>

@@ -82,14 +82,20 @@ require_once "../includes/header.php";
 
     </a>
 
-    <a href="reservations.php" class="dashboard-card">
+    <a href="reservations.php" class="dashboard-card reservation-dashboard-card">
 
-        <h3>🔖 Reservations</h3>
+        <div class="dashboard-card-content">
+            <h3>🔖 Reservations</h3>
+            <p>
+                Manage book reservation requests
+            </p>
+        </div>
 
-        <p>
-            <?php echo $reservation_count; ?>
-            pending reservation(s)
-        </p>
+        <?php if ($reservation_count > 0): ?>
+            <span class="notification-badge">
+                <?php echo $reservation_count; ?>
+            </span>
+        <?php endif; ?>
 
     </a>
 

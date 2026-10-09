@@ -181,9 +181,44 @@ if (
     $cover_src = "/college-library/" . ltrim($cover_src, "/");
 }
 
+$reservation_message = null;
+if (isset($_GET["reservation"])) {
+    switch ($_GET["reservation"]) {
+        case "exists":
+            $reservation_message = [
+                "type" => "warning",
+                "text" => "You already have a pending reservation for this book.",
+            ];
+            break;
+        case "available":
+            $reservation_message = [
+                "type" => "error",
+                "text" => "This book is currently available, so reservation requests are not allowed.",
+            ];
+            break;
+        case "unavailable":
+            $reservation_message = [
+                "type" => "error",
+                "text" => "No copy is currently returning today, so this book cannot be reserved right now.",
+            ];
+            break;
+        case "requested":
+            $reservation_message = [
+                "type" => "success",
+                "text" => "Your reservation request has been submitted.",
+            ];
+            break;
+    }
+}
+
 ?>
 
 <div class="book-details-page">
+    <?php if ($reservation_message !== null): ?>
+        <div class="reservation-banner reservation-banner-<?php echo htmlspecialchars($reservation_message["type"]); ?>">
+            <?php echo htmlspecialchars($reservation_message["text"]); ?>
+        </div>
+    <?php endif; ?>
 
     <a href="books.php" class="book-back-link">
         <span aria-hidden="true">&larr;</span>
@@ -275,12 +310,12 @@ if (
                         <span class="book-action-status reserved">Reservation Requested</span>
                     <?php elseif ($has_active_loan): ?>
                         <span class="book-action-status already-borrowed">You already have this book</span>
-                    <?php elseif ((int) ($copy_stats["available_copies"] ?? 0) > 0 || $returning_today > 0): ?>
+                    <?php elseif ((int) ($copy_stats["available_copies"] ?? 0) === 0 && $returning_today > 0): ?>
                         <a href="reserve-book.php?id=<?php echo (int) $book["id"]; ?>" class="btn btn-primary">
                             Request to Reserve
                         </a>
                     <?php else: ?>
-                        <span class="book-action-status unavailable">No copies currently available</span>
+                        <span class="book-action-status unavailable">Reservation unavailable</span>
                     <?php endif; ?>
                 <?php elseif (!isset($_SESSION["user_id"])): ?>
                     <a href="login.php" class="btn btn-primary">Login to Reserve</a>
